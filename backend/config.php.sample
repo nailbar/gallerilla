@@ -1,0 +1,8 @@
+<?php
+
+$config = [
+  "photoDir" => "data/photoData/",
+  "metaDir" => "data/photoMeta/",
+  "thumbDir" => "data/photoThumbs/",
+  "userFile" => "data/users.json"
+];
