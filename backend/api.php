@@ -3,9 +3,17 @@ header("Content-Type: application/json");
 manageCors();
 require_once "config.php";
 list($a, $b, $c) = parseGet();
+$authenticatedUser = authenticate();
 
 switch($a) {
   case "test": makeResp("Test OK");
+  case "meta":
+    if($_SERVER["REQUEST_METHOD"] === "POST") {
+      validateUser(); // Valid user require for write access
+      makeResp(saveMeta($b, json_decode(file_get_contents("php://input"), true)));
+    } else {
+      makeResp(getMeta($b));
+    }
   case "gallery":
     if($b) {
       getPhoto($b, $c);
@@ -17,6 +25,37 @@ switch($a) {
     validateUser(); // Requires valid user
     makeResp(getUser());
   default: makeError("Unknown action", empty($a) ? "NO ACTION PROVIDED" : $a);
+}
+
+function saveMeta($id, $data) {
+  global $config, $authenticatedUser;
+  $metaPath = "{$config["metaDir"]}{$id}.json";
+  if(file_exists($metaPath)) {
+    $meta = json_decode(file_get_contents($metaPath), true);
+  } else {
+    $meta = [];
+  }
+  $meta[] = [ "created" => date("c"), "createdBy" => $authenticatedUser["id"], "meta" => $data["meta"]];
+  $json = json_encode($meta);
+  if($json) {
+    file_put_contents($metaPath, $json);
+    makeResp("Meta entry saved");
+  } else {
+    makeError("Could not generate JSON for meta entry", $meta);
+  }
+}
+
+function getMeta($id) {
+  global $config;
+  $metaPath = "{$config["metaDir"]}{$id}.json";
+
+  foreach(getPhotos() as $photo) {
+    if($photo["id"] === $id) {
+      return $photo;
+    }
+  }
+
+  makeError("getMeta: Invalid ID", $id);
 }
 
 function manageCors() {
@@ -35,21 +74,31 @@ function manageCors() {
   }
 }
 
+function authenticate() {
+  global $config;
+  $token = getAuthorizationHeader();
+  foreach(json_decode(file_get_contents($config["userFile"]), true) as $user) {
+    if("Bearer {$user["token"]}" === $token) {
+      return $user;
+    }
+  }
+  return [
+    "id" => 0,
+    "name" => "Guest",
+    "token" => ""
+  ];
+}
+
 function validateUser() {
-  if(!getUser()) {
+  global $authenticatedUser;
+  if(empty($authenticatedUser["id"])) {
     makeError("Access denied");
   }
 }
 
 function getUser() {
-  global $config;
-  $token = getAuthorizationHeader();
-  foreach(json_decode(file_get_contents($config["userFile"]), true) as $user) {
-    if("Bearer {$user["token"]}" === $token) {
-      return $user["name"];
-    }
-  }
-  return "";
+  global $authenticatedUser;
+  return $authenticatedUser["name"];
 }
 
 function getPhoto($id, $size) {
@@ -78,9 +127,8 @@ function getPhoto($id, $size) {
 
 function getThumbnail($id, $size, $path, $type) {
   global $config;
-  $thumbPath = "{$config["thumbDir"]}$id.$size";
+  $thumbPath = "{$config["metaDir"]}$id.thumb.$size";
   if(!file_exists($thumbPath)) {
-    // is_writeable($config["thumbDir"])
     switch($type) {
       case "image/jpeg": $img = imagecreatefromjpeg($path); break;
       case "image/png": $img = imagecreatefrompng($path); break;
@@ -137,6 +185,7 @@ function getPhotos($fullPath = false) {
 }
 
 function parsePhoto($path, $fullPath = false) {
+  global $config;
   $filename = basename($path);
   $nameParts = explode(".", $filename);
   if(count($nameParts) <= 1) {
@@ -155,10 +204,16 @@ function parsePhoto($path, $fullPath = false) {
     "id" => md5($filename . "skalbaggssekret"),
     "filename" => $filename,
     "name" => $name,
+    "meta" => "",
     "type" => $fileType
   ];
   if($fullPath) {
     $return["path"] = $path;
+  }
+  $metaPath = "{$config["metaDir"]}{$return["id"]}.json";
+  if(file_exists($metaPath)) {
+    $meta = json_decode(file_get_contents($metaPath), true);
+    $return["meta"] = $meta[count($meta) - 1]["meta"];
   }
   return $return;
 }

@@ -1,4 +1,4 @@
 [
-  { "token": "the_secret_key_for_link", "name": "User One" },
-  { "token": "another_users_secret", "name": "User Two" }
+  { "id": 1, "token": "the_secret_key_for_link", "name": "User One" },
+  { "id": 2, "token": "another_users_secret", "name": "User Two" }
 ]

@@ -2,7 +2,6 @@
 
 $config = [
   "photoDir" => "data/photoData/",
-  "metaDir" => "data/photoMeta/",
-  "thumbDir" => "data/photoThumbs/",
+  "metaDir" => "data/photoMeta/", // Must be writeable
   "userFile" => "data/users.json"
 ];
